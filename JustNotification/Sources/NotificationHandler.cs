@@ -6,11 +6,14 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using NLog;
 
 namespace JustNotification
 {
     class NotificationHandler
     {
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
+
         private struct JNMessage
         {
             public float timeout { get; set; }
@@ -35,7 +38,37 @@ namespace JustNotification
             }
 
             string json = JsonSerializer.Serialize(notification);
-            _ = socket.Send(json);
+
+            // XSOverlay 経由で通知を出す場合は NamedPipe/外部オーバーレイ不要
+            if (Properties.Settings.Default.use_xsoverlay)
+            {
+                try
+                {
+                    // タイトル文字列はここで既にソフト名を付与済みなので、XSNotifications側では付与しない
+                    XSNotifications.Show(notification.title, notification.content, null, "");
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex, "Failed to send notification via XSOverlay");
+                }
+
+                return;
+            }
+
+            // 外部オーバーレイ(JustNotificationOverlay.exe)へ送信
+            _ = SendViaPipeSafeAsync(json);
+        }
+
+        private static async Task SendViaPipeSafeAsync(string json)
+        {
+            try
+            {
+                await socket.Send(json);
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Failed to send notification via NamedPipe (overlay not running?)");
+            }
         }
     }
 }

@@ -19,27 +19,35 @@ namespace JustNotification
 
         public static async void Init()
         {
-            if (!ApiInformation.IsTypePresent("Windows.UI.Notifications.Management.UserNotificationListener"))
+            try
+            {
+                if (!ApiInformation.IsTypePresent("Windows.UI.Notifications.Management.UserNotificationListener"))
+                {
+                    AccessAllowed = false;
+                    userNotificationListener = null;
+                    return;
+                }
+
+                userNotificationListener = UserNotificationListener.Current;
+                UserNotificationListenerAccessStatus accessStatus = await userNotificationListener.RequestAccessAsync();
+
+                if (accessStatus != UserNotificationListenerAccessStatus.Allowed)
+                {
+                    AccessAllowed = false;
+                    userNotificationListener = null;
+                    logger.Warn("Notification listener access not allowed: {0}", accessStatus);
+                    return;
+                }
+                AccessAllowed = true;
+
+                GetNotification();
+            }
+            catch (Exception ex)
             {
                 AccessAllowed = false;
                 userNotificationListener = null;
-                return;
+                logger.Error(ex, "Notification.Init failed");
             }
-
-            userNotificationListener = UserNotificationListener.Current;
-            UserNotificationListenerAccessStatus accessStatus = await userNotificationListener.RequestAccessAsync();
-
-            if (accessStatus != UserNotificationListenerAccessStatus.Allowed)
-            {
-                AccessAllowed = false;
-                userNotificationListener = null;
-                return;
-            }
-            AccessAllowed = true;
-
-            GetNotification();
-
-            return;
         }
 
         private static async void GetNotification()
@@ -49,25 +57,41 @@ namespace JustNotification
 
             while (IsEnableGetNotification)
             {
-                IReadOnlyList<UserNotification> userNotifications = await userNotificationListener.GetNotificationsAsync(NotificationKinds.Toast);
-
-                // 初回取得時点で既にある通知は投げないようにする
-                if(!init)
+                try
                 {
-                    foreach (var n in userNotifications) notificationIds.Add(n.Id);
-                    init = true;
-                }
-                
-                foreach (var n in userNotifications)
-                {
-                    if (!notificationIds.Contains(n.Id))
+                    if (userNotificationListener == null)
                     {
-                        ShowNotification(n);
-                        notificationIds.Add(n.Id);
+                        AccessAllowed = false;
+                        await Task.Delay(1000);
+                        continue;
                     }
-                }
 
-                await Task.Delay(Properties.Settings.Default.interval);
+                    IReadOnlyList<UserNotification> userNotifications = await userNotificationListener.GetNotificationsAsync(NotificationKinds.Toast);
+
+                    // 初回取得時点で既にある通知は投げないようにする
+                    if (!init)
+                    {
+                        foreach (var n in userNotifications) notificationIds.Add(n.Id);
+                        init = true;
+                    }
+
+                    foreach (var n in userNotifications)
+                    {
+                        if (!notificationIds.Contains(n.Id))
+                        {
+                            ShowNotification(n);
+                            notificationIds.Add(n.Id);
+                        }
+                    }
+
+                    await Task.Delay(Properties.Settings.Default.interval);
+                }
+                catch (Exception ex)
+                {
+                    // WinRT/権限/一時的な失敗等で例外が飛ぶことがあるため、落とさずログに残す
+                    logger.Error(ex, "Notification polling failed");
+                    await Task.Delay(2000);
+                }
             }
         }
 

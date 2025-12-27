@@ -1,10 +1,14 @@
 using System;
+using System.IO;
 using System.Windows.Forms;
+using NLog;
 
 namespace JustNotification
 {
     static class Program
     {
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
+
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
@@ -13,6 +17,9 @@ namespace JustNotification
         {
             string appName = "JustNotification+";
             System.Threading.Mutex mutex = new System.Threading.Mutex(false, appName);
+
+            EnsureLogDirectory();
+            SetupGlobalExceptionHandlers();
 
             bool hasHandle = false;
             try
@@ -63,6 +70,83 @@ namespace JustNotification
             Notification.Init();
             SteamVR.Init();
             OverlayHandler.Init();
+        }
+
+        private static void EnsureLogDirectory()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "logs"));
+            }
+            catch
+            {
+                // ログディレクトリ作成失敗は致命的ではないため握りつぶす
+            }
+        }
+
+        private static void SetupGlobalExceptionHandlers()
+        {
+            try
+            {
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+
+                Application.ThreadException += (_, e) =>
+                {
+                    try
+                    {
+                        logger.Fatal(e.Exception, "Unhandled UI thread exception");
+                        LogManager.Flush();
+                    }
+                    catch { }
+
+                    try
+                    {
+                        MessageBox.Show(
+                            "JustNotification+ が予期せず終了しました。\n\n" +
+                            "詳細は logs フォルダのログを確認してください。\n\n" +
+                            e.Exception,
+                            "致命的なエラー",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error);
+                    }
+                    catch { }
+
+                    Environment.Exit(1);
+                };
+
+                AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+                {
+                    try
+                    {
+                        if (e.ExceptionObject is Exception ex)
+                        {
+                            logger.Fatal(ex, "Unhandled AppDomain exception (IsTerminating={0})", e.IsTerminating);
+                        }
+                        else
+                        {
+                            logger.Fatal("Unhandled AppDomain exception (IsTerminating={0}): {1}", e.IsTerminating, e.ExceptionObject);
+                        }
+
+                        LogManager.Flush();
+                    }
+                    catch { }
+                };
+
+                System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, e) =>
+                {
+                    try
+                    {
+                        logger.Error(e.Exception, "Unobserved task exception");
+                        LogManager.Flush();
+                    }
+                    catch { }
+                    e.SetObserved();
+                };
+            }
+            catch
+            {
+                // ここで失敗しても起動自体は続行
+            }
         }
     }
 }
