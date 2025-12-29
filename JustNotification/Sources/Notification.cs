@@ -54,6 +54,7 @@ namespace JustNotification
         {
             List<uint> notificationIds = new();
             bool init = false;
+            bool notSupportedLogged = false;
 
             while (IsEnableGetNotification)
             {
@@ -85,6 +86,22 @@ namespace JustNotification
                     }
 
                     await Task.Delay(Properties.Settings.Default.interval);
+                }
+                catch (NotImplementedException ex)
+                {
+                    // 環境/OS/実行形態によっては UserNotificationListener の一部 API が E_NOTIMPL になる。
+                    // この場合はリトライしても改善しないため、通知取得機能自体を無効化してログスパムを防ぐ。
+                    AccessAllowed = false;
+                    userNotificationListener = null;
+                    IsEnableGetNotification = false;
+
+                    if (!notSupportedLogged)
+                    {
+                        notSupportedLogged = true;
+                        logger.Warn(ex, "UserNotificationListener.GetNotificationsAsync is not supported on this environment. Notification polling disabled.");
+                    }
+
+                    return;
                 }
                 catch (Exception ex)
                 {
