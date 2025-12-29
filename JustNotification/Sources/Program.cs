@@ -7,8 +7,6 @@ namespace JustNotification
 {
     static class Program
     {
-        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
-
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
@@ -19,6 +17,7 @@ namespace JustNotification
             System.Threading.Mutex mutex = new System.Threading.Mutex(false, appName);
 
             EnsureLogDirectory();
+            ConfigureLogging();
             SetupGlobalExceptionHandlers();
 
             bool hasHandle = false;
@@ -56,6 +55,17 @@ namespace JustNotification
             }
             finally
             {
+                try
+                {
+                    // 通常終了時も確実に書き出す
+                    LogManager.Flush(TimeSpan.FromSeconds(2));
+                    LogManager.Shutdown();
+                }
+                catch
+                {
+                    // 終了処理なので握りつぶす
+                }
+
                 if (hasHandle)
                 {
                     mutex.ReleaseMutex();
@@ -84,18 +94,57 @@ namespace JustNotification
             }
         }
 
+        private static void ConfigureLogging()
+        {
+            try
+            {
+                // NLogは既定で ${basedir}/NLog.config を読むが、
+                // パッケージ由来のテンプレートが出力されるとログが出ないため明示的に読み込む。
+                var configPath = Path.Combine(AppContext.BaseDirectory, "NLog.config");
+                if (File.Exists(configPath))
+                {
+                    LogManager.Setup().LoadConfigurationFromFile(configPath);
+                }
+            }
+            catch
+            {
+                // ログ初期化失敗でもアプリは起動を継続
+            }
+        }
+
         private static void SetupGlobalExceptionHandlers()
         {
             try
             {
                 Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
 
+                Application.ApplicationExit += (_, __) =>
+                {
+                    try
+                    {
+                        LogManager.Flush(TimeSpan.FromSeconds(2));
+                        LogManager.Shutdown();
+                    }
+                    catch { }
+                };
+
+                AppDomain.CurrentDomain.ProcessExit += (_, __) =>
+                {
+                    try
+                    {
+                        LogManager.Flush(TimeSpan.FromSeconds(2));
+                        LogManager.Shutdown();
+                    }
+                    catch { }
+                };
+
                 Application.ThreadException += (_, e) =>
                 {
                     try
                     {
-                        logger.Fatal(e.Exception, "Unhandled UI thread exception");
-                        LogManager.Flush();
+                        LogManager.GetCurrentClassLogger().Fatal(e.Exception, "Unhandled UI thread exception");
+                        LogManager.Flush(TimeSpan.FromSeconds(2));
+                        LogManager.Shutdown();
                     }
                     catch { }
 
@@ -120,14 +169,15 @@ namespace JustNotification
                     {
                         if (e.ExceptionObject is Exception ex)
                         {
-                            logger.Fatal(ex, "Unhandled AppDomain exception (IsTerminating={0})", e.IsTerminating);
+                            LogManager.GetCurrentClassLogger().Fatal(ex, "Unhandled AppDomain exception (IsTerminating={0})", e.IsTerminating);
                         }
                         else
                         {
-                            logger.Fatal("Unhandled AppDomain exception (IsTerminating={0}): {1}", e.IsTerminating, e.ExceptionObject);
+                            LogManager.GetCurrentClassLogger().Fatal("Unhandled AppDomain exception (IsTerminating={0}): {1}", e.IsTerminating, e.ExceptionObject);
                         }
 
-                        LogManager.Flush();
+                        LogManager.Flush(TimeSpan.FromSeconds(2));
+                        LogManager.Shutdown();
                     }
                     catch { }
                 };
@@ -136,8 +186,8 @@ namespace JustNotification
                 {
                     try
                     {
-                        logger.Error(e.Exception, "Unobserved task exception");
-                        LogManager.Flush();
+                        LogManager.GetCurrentClassLogger().Error(e.Exception, "Unobserved task exception");
+                        LogManager.Flush(TimeSpan.FromSeconds(2));
                     }
                     catch { }
                     e.SetObserved();
