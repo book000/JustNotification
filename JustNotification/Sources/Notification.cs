@@ -114,19 +114,31 @@ namespace JustNotification
 
         private static void ShowNotification(UserNotification n)
         {
-            var notificationBinding = n.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
-            if (notificationBinding != null)
+            try
             {
-                IReadOnlyList<AdaptiveNotificationText> textElements = notificationBinding.GetTextElements();
+                var notificationBinding = n.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
+                if (notificationBinding != null)
+                {
+                    IReadOnlyList<AdaptiveNotificationText> textElements = notificationBinding.GetTextElements();
 
-                string nameText = n.AppInfo.DisplayInfo.DisplayName;
-                string titleText = textElements.FirstOrDefault()?.Text;
-                string bodyText = string.Join("\n", textElements.Skip(1).Select(t => t.Text));
+                    string nameText = n.AppInfo.DisplayInfo.DisplayName;
+                    string titleText = textElements.FirstOrDefault()?.Text;
+                    string bodyText = string.Join("\n", textElements.Skip(1).Select(t => t.Text));
 
-                logger.Trace($"NotificationDetected: {nameText}");
+                    logger.Trace($"NotificationDetected: {nameText}");
 
-                NotificationHandler.Show(titleText, bodyText, nameText);
+                    NotificationHandler.Show(titleText, bodyText, nameText);
 
+                }
+            }
+            catch (NotImplementedException ex)
+            {
+                // 一部の環境では UserNotification.AppInfo が E_NOTIMPL になる場合がある
+                logger.Warn(ex, "UserNotification property is not supported on this environment");
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "ShowNotification failed");
             }
         }
     }
