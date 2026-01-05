@@ -8,6 +8,7 @@
   - Added exception handling in `ShowNotification` method to gracefully handle cases where `UserNotification.AppInfo` property is not implemented
   - Prevents log spam and allows the application to continue functioning on unsupported environments
   - Related logs: Multiple `NotImplementedException` errors recorded from 2025-12-28 onwards
+  - Verified fix: No ERROR-level logs for NotImplementedException after 2025-12-28; properly logged as WARN level
 
 ## Version History
 
