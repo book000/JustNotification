@@ -56,6 +56,8 @@ namespace JustNotification
             bool init = false;
             bool notSupportedLogged = false;
 
+            logger.Info($"[Notification] Starting notification polling loop (interval: {Properties.Settings.Default.interval}ms)");
+
             while (IsEnableGetNotification)
             {
                 try
@@ -63,26 +65,37 @@ namespace JustNotification
                     if (userNotificationListener == null)
                     {
                         AccessAllowed = false;
+                        logger.Warn($"[Notification] Listener is null, waiting 1s before retry");
                         await Task.Delay(1000);
                         continue;
                     }
 
                     IReadOnlyList<UserNotification> userNotifications = await userNotificationListener.GetNotificationsAsync(NotificationKinds.Toast);
+                    logger.Trace($"[Notification] Retrieved {userNotifications.Count} notification(s) from system");
 
                     // 初回取得時点で既にある通知は投げないようにする
                     if (!init)
                     {
                         foreach (var n in userNotifications) notificationIds.Add(n.Id);
                         init = true;
+                        logger.Info($"[Notification] Initialization complete. Ignoring {notificationIds.Count} existing notification(s)");
                     }
 
+                    int newNotificationCount = 0;
                     foreach (var n in userNotifications)
                     {
                         if (!notificationIds.Contains(n.Id))
                         {
+                            newNotificationCount++;
+                            logger.Debug($"[Notification] New notification detected - ID: {n.Id}");
                             ShowNotification(n);
                             notificationIds.Add(n.Id);
                         }
+                    }
+
+                    if (newNotificationCount > 0)
+                    {
+                        logger.Info($"[Notification] Processed {newNotificationCount} new notification(s). Total tracked: {notificationIds.Count}");
                     }
 
                     await Task.Delay(Properties.Settings.Default.interval);
@@ -125,20 +138,24 @@ namespace JustNotification
                     string titleText = textElements.FirstOrDefault()?.Text;
                     string bodyText = string.Join("\n", textElements.Skip(1).Select(t => t.Text));
 
-                    logger.Trace($"NotificationDetected: {nameText}");
+                    logger.Info($"[Notification] Detected - App: '{nameText}', Title: '{titleText}', Body: '{bodyText}', TextElementsCount: {textElements.Count}");
 
                     NotificationHandler.Show(titleText, bodyText, nameText);
+                }
+                else
+                {
+                    logger.Warn($"[Notification] Binding is null for notification ID: {n.Id}");
 
                 }
             }
             catch (NotImplementedException ex)
             {
                 // 一部の環境では UserNotification.AppInfo が E_NOTIMPL になる場合がある
-                logger.Warn(ex, "UserNotification property is not supported on this environment");
+                logger.Warn(ex, $"[Notification] UserNotification property is not supported on this environment (ID: {n.Id})");
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "ShowNotification failed");
+                logger.Error(ex, $"[Notification] ShowNotification failed for notification ID: {n.Id}");
             }
         }
     }

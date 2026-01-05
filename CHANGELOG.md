@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- Enhanced debug logging for easier troubleshooting
+  - Added detailed logging for notification content (app name, title, body, timeout)
+  - Added logging for XSOverlay notification sending with success/failure status
+  - Added logging for NamedPipe notification sending with success/failure status
+  - Added polling loop status logging (interval, retrieved count, new notifications)
+  - Added notification ID tracking logs
+  - Added JSON payload trace logging
+  - Improved exception logs with notification IDs for context
+
 ### Fixed
 
 - Fixed `NotImplementedException` errors in notification polling on some environments

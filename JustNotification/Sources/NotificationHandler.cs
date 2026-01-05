@@ -31,6 +31,8 @@ namespace JustNotification
             notification.content = bodyText ?? "";
             notification.timeout = Properties.Settings.Default.timeout / 1000f;
 
+            logger.Debug($"[NotificationHandler] Showing notification - App: '{nameText}', Title: '{titleText}', Body: '{bodyText}', Timeout: {notification.timeout}s");
+
             // 設定でソフト名を有効にしていて、なおかつソフト名がnullでなければソフト名を付け足す
             if (Properties.Settings.Default.enable_title && nameText != null)
             {
@@ -38,14 +40,17 @@ namespace JustNotification
             }
 
             string json = JsonSerializer.Serialize(notification);
+            logger.Trace($"[NotificationHandler] JSON payload: {json}");
 
             // XSOverlay 経由で通知を出す場合は NamedPipe/外部オーバーレイ不要
             if (Properties.Settings.Default.use_xsoverlay)
             {
+                logger.Debug($"[NotificationHandler] Sending via XSOverlay - Title: '{notification.title}', Content: '{notification.content}'");
                 try
                 {
                     // タイトル文字列はここで既にソフト名を付与済みなので、XSNotifications側では付与しない
                     XSNotifications.Show(notification.title, notification.content, null, "");
+                    logger.Info($"[NotificationHandler] Successfully sent notification via XSOverlay");
                 }
                 catch (Exception ex)
                 {
@@ -56,6 +61,7 @@ namespace JustNotification
             }
 
             // 外部オーバーレイ(JustNotificationOverlay.exe)へ送信
+            logger.Debug($"[NotificationHandler] Sending via NamedPipe to overlay");
             _ = SendViaPipeSafeAsync(json);
         }
 
@@ -64,6 +70,7 @@ namespace JustNotification
             try
             {
                 await socket.Send(json);
+                logger.Info($"[NotificationHandler] Successfully sent notification via NamedPipe");
             }
             catch (Exception ex)
             {
