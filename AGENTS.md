@@ -25,3 +25,6 @@
 - ログに機密情報を出力しない。
 
 ## リポジトリ固有
+- VR・OpenVRインテグレーション対応
+- Windows Forms UIベース
+- TargetFramework: net5.0-windows10.0.19041.0

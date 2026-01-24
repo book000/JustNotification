@@ -15,7 +15,17 @@
 - 日本語と英数字の間には半角スペースを入れる。
 
 ## プロジェクト概要
-- 目的: VR上でWindowsの通知を確認出来るシンプルなアプリケーション
+VR環境上でWindowsの通知を確認できるC#/.NETデスクトップアプリケーション。
+
+### 技術スタック
+- **言語**: C#
+- **フレームワーク**: Windows Forms, .NET 5.0
+- **パッケージマネージャー**: NuGet
+- **主要な依存関係**:
+  - Microsoft.Toolkit.Uwp.Notifications v7.0.2
+  - NLog.Config v4.7.11
+  - OVRSharp v1.2.0
+  - XSNotifications v0.1.2
 
 ## コーディング規約
 - フォーマット: 既存設定（ESLint / Prettier / formatter）に従う。
@@ -23,9 +33,20 @@
 - コメント言語: 日本語
 - エラーメッセージ: 英語
 
-## 開発コマンド
+### 開発コマンド
 ```bash
-# README を確認してください
+# install
+NuGet restore
+
+# dev
+VisualStudio build/run
+
+# build
+dotnet build
+
+# test
+dotnet test
+
 ```
 
 ## 注意事項
@@ -34,3 +55,6 @@
 - 既存のプロジェクトルールがある場合はそれを優先する。
 
 ## リポジトリ固有
+- VR・OpenVRインテグレーション対応
+- Windows Forms UIベース
+- TargetFramework: net5.0-windows10.0.19041.0
